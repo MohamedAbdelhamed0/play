@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -19,26 +20,138 @@ class MusicPlayerPage extends StatefulWidget {
   State<MusicPlayerPage> createState() => _MusicPlayerPageState();
 }
 
-class _MusicPlayerPageState extends State<MusicPlayerPage> {
+class _MusicPlayerPageState extends State<MusicPlayerPage>
+    with SingleTickerProviderStateMixin {
   final List<double> _speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    )..repeat(reverse: true);
+
+    _scaleAnimation = Tween<double>(
+      begin: 0.95,
+      end: 1.05,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
   void _showSpeedDialog(BuildContext context, MusicProvider provider) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Playback Speed'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: _speeds.map((speed) {
-            return ListTile(
-              title: Text('${speed}x'),
-              selected: provider.speed == speed,
-              onTap: () {
-                provider.setSpeed(speed);
-                Navigator.pop(context);
-              },
-            );
-          }).toList(),
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.blue.shade900,
+                  Colors.black87,
+                ],
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Playback Speed',
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  height: 60,
+                  margin: const EdgeInsets.symmetric(vertical: 10),
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _speeds.length,
+                    itemBuilder: (context, index) {
+                      final speed = _speeds[index];
+                      final isSelected = provider.speed == speed;
+                      return GestureDetector(
+                        onTap: () {
+                          provider.setSpeed(speed);
+                          Navigator.pop(context);
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          margin: const EdgeInsets.symmetric(horizontal: 8),
+                          width: 60,
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.blue.withOpacity(0.3)
+                                : Colors.white.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(
+                              color:
+                                  isSelected ? Colors.blue : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                '${speed}x',
+                                style: TextStyle(
+                                  color:
+                                      isSelected ? Colors.blue : Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                ),
+                              ),
+                              if (speed == 1.0)
+                                Text(
+                                  'Normal',
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? Colors.blue
+                                        : Colors.white70,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text(
+                    'Close',
+                    style: TextStyle(color: Colors.white70),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -64,79 +177,53 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
           extendBodyBehindAppBar: true,
           body: Container(
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [dominantColor, Colors.black87],
+              image: DecorationImage(
+                fit: BoxFit.cover,
+                image: provider.getSongImage(currentSong.id) != null
+                    ? FileImage(provider.getSongImage(currentSong.id)!)
+                    : const AssetImage('assets/album_art.jpg'),
               ),
             ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        GestureDetector(
-                          onTap: () => _pickImage(context, currentSong.id),
-                          child: Hero(
-                            tag: 'song-${currentSong.id}',
-                            child: Container(
-                              width: 250,
-                              height: 250,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  colors: [
-                                    Colors.blue.shade400,
-                                    Colors.blue.shade700,
-                                  ],
-                                ),
-                                image: provider.getSongImage(currentSong.id) !=
-                                        null
-                                    ? DecorationImage(
-                                        image: FileImage(
-                                          provider
-                                              .getSongImage(currentSong.id)!,
-                                        ),
-                                        fit: BoxFit.cover,
-                                      )
-                                    : null,
-                              ),
-                              child:
-                                  provider.getSongImage(currentSong.id) == null
-                                      ? const Icon(
-                                          Icons.music_note,
-                                          size: 120,
-                                          color: Colors.white,
-                                        )
-                                      : null,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [dominantColor, Colors.black87],
+                ),
+              ),
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildAlbumArt(provider, currentSong),
+                          const SizedBox(height: 32),
+                          Text(
+                            currentSong.title,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            currentSong.artist ?? 'Unknown Artist',
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Colors.blue.shade200,
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 32),
-                        Text(
-                          currentSong.title,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          currentSong.artist ?? 'Unknown Artist',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.blue.shade200,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  _buildPlayerControls(context, provider),
-                ],
+                    _buildPlayerControls(context, provider),
+                  ],
+                ),
               ),
             ),
           ),
@@ -233,7 +320,7 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
                           child: Text(
                             '${provider.speed}x',
                             style: const TextStyle(
-                              fontSize: 8,
+                              fontSize: 5,
                               color: Colors.white,
                             ),
                           ),
@@ -312,6 +399,60 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildAlbumArt(MusicProvider provider, SongModel currentSong) {
+    return GestureDetector(
+      onTap: () => _pickImage(context, currentSong.id),
+      child: Hero(
+        tag: 'song-${currentSong.id}',
+        child: AnimatedBuilder(
+          animation: _animationController,
+          builder: (context, child) {
+            // Start or stop animation based on playback state
+            if (provider.isPlaying && !_animationController.isAnimating) {
+              _animationController.repeat(reverse: true);
+            } else if (!provider.isPlaying &&
+                _animationController.isAnimating) {
+              _animationController.stop();
+            }
+
+            return Transform.scale(
+              scale: provider.isPlaying ? _scaleAnimation.value : 1.0,
+              child: child,
+            );
+          },
+          child: Container(
+            width: 250,
+            height: 250,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [
+                  Colors.blue.shade400,
+                  Colors.blue.shade700,
+                ],
+              ),
+              image: provider.getSongImage(currentSong.id) != null
+                  ? DecorationImage(
+                      image: FileImage(
+                        provider.getSongImage(currentSong.id)!,
+                      ),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            child: provider.getSongImage(currentSong.id) == null
+                ? const Icon(
+                    Icons.music_note,
+                    size: 120,
+                    color: Colors.white,
+                  )
+                : null,
+          ),
+        ),
       ),
     );
   }
