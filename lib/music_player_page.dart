@@ -164,69 +164,81 @@ class _MusicPlayerPageState extends State<MusicPlayerPage>
         final currentSong = provider.currentSong ?? widget.song;
         final dominantColor =
             provider.getSongColor(currentSong.id) ?? Colors.blue;
-
-        return Scaffold(
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-          extendBodyBehindAppBar: true,
-          body: Container(
-            decoration: BoxDecoration(
-              image: DecorationImage(
-                fit: BoxFit.cover,
-                image: provider.getSongImage(currentSong.id) != null
-                    ? FileImage(provider.getSongImage(currentSong.id)!)
-                    : const AssetImage('assets/album_art.jpg'),
-              ),
-            ),
-            child: Container(
+        return Stack(
+          children: [
+            // Background image with blur
+            Container(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [dominantColor, Colors.black87],
-                ),
-              ),
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildAlbumArt(provider, currentSong),
-                          const SizedBox(height: 32),
-                          Text(
-                            currentSong.title,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            currentSong.artist ?? 'Unknown Artist',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.blue.shade200,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _buildPlayerControls(context, provider),
-                  ],
+                image: DecorationImage(
+                  fit: BoxFit.cover,
+                  image: provider.getSongImage(currentSong.id) != null
+                      ? FileImage(provider.getSongImage(currentSong.id)!)
+                      : const AssetImage('assets/album_art.jpg')
+                          as ImageProvider,
                 ),
               ),
             ),
-          ),
+            BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      dominantColor,
+                      Colors.black.withOpacity(0.9),
+                    ],
+                  ),
+                ),
+                child: Scaffold(
+                  backgroundColor: Colors.transparent,
+                  appBar: AppBar(
+                    backgroundColor: Colors.transparent,
+                    elevation: 0,
+                    leading: IconButton(
+                      icon: const Icon(Icons.arrow_back_ios),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
+                  extendBodyBehindAppBar: true,
+                  body: SafeArea(
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildAlbumArt(provider, currentSong),
+                              const SizedBox(height: 32),
+                              Text(
+                                currentSong.title,
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                currentSong.artist ?? 'Unknown Artist',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.blue.shade200,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _buildPlayerControls(context, provider),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         );
       },
     );

@@ -52,7 +52,7 @@ class MusicPlayerHome extends StatelessWidget {
             child: Column(
               children: [
                 Padding(
-                  padding: EdgeInsets.only(left: 16, right: 16, top: 8),
+                  padding: EdgeInsets.only(left: 8, right: 8, top: 8),
                   child: AnimatedSearchRow(
                     onSearch: (query) {
                       provider.setSearchQuery(query);
@@ -157,22 +157,6 @@ class MusicPlayerHome extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildFilterChip(String label, String value, MusicProvider provider) {
-    return FilterChip(
-      label: Text(label),
-      selected: provider.currentFilter == value,
-      onSelected: (_) => provider.setFilter(value),
-      selectedColor: Colors.blue.shade700,
-      checkmarkColor: Colors.white,
-      labelStyle: TextStyle(
-        color: provider.currentFilter == value
-            ? Colors.white
-            : Colors.blue.shade200,
-      ),
-      backgroundColor: Colors.blue.shade900.withOpacity(0.3),
     );
   }
 
@@ -291,6 +275,12 @@ class MusicPlayerHome extends StatelessWidget {
 
   Widget _buildSpeedButton(MusicProvider provider) {
     return PopupMenuButton<double>(
+      onSelected: provider.setSpeed,
+      itemBuilder: (context) => [
+        _buildSpeedMenuItem(0.5),
+        _buildSpeedMenuItem(1.0),
+        _buildSpeedMenuItem(2.0),
+      ],
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
@@ -305,12 +295,6 @@ class MusicPlayerHome extends StatelessWidget {
           ),
         ),
       ),
-      onSelected: provider.setSpeed,
-      itemBuilder: (context) => [
-        _buildSpeedMenuItem(0.5),
-        _buildSpeedMenuItem(1.0),
-        _buildSpeedMenuItem(2.0),
-      ],
     );
   }
 

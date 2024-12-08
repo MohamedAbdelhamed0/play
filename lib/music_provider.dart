@@ -46,12 +46,39 @@ class MusicProvider extends ChangeNotifier {
       await _requestPermissions();
       await _fetchSongs();
       await _loadSongImages();
-      await _loadSongColors(); // Load song colors from the database
+      await _loadSongColors();
 
       _audioPlayer.playerStateStream.listen((state) {
         _isPlaying = state.playing;
         notifyListeners();
       });
+
+      // Modify completion listener to use processingState
+      _audioPlayer.playerStateStream.listen((playerState) {
+        if (playerState.processingState == ProcessingState.completed) {
+          switch (_loopMode) {
+            case LoopMode.off:
+              if (_currentIndex < _songs.length - 1) {
+                next();
+              }
+              break;
+            case LoopMode.one:
+              // Do nothing as the player will automatically repeat
+              break;
+            case LoopMode.all:
+              if (_currentIndex < _songs.length - 1) {
+                next();
+              } else {
+                playSong(0);
+              }
+              break;
+          }
+        }
+      });
+
+      // Initialize with no song selected
+      _currentIndex = -1;
+      _isPlaying = false;
     } catch (e) {
       debugPrint('Error initializing music provider: $e');
     }
@@ -261,18 +288,23 @@ class MusicProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Method to play a song by its ID
+  // Modify playSongById method
   void playSongById(int songId) async {
-    // Find song in the main songs list
-    final index = _songs.indexWhere((song) => song.id == songId);
-    if (index != -1) {
-      _currentIndex = index;
-      final song = _songs[index];
-      await _dbHelper.insertOrUpdateSong(song, imagePath: _songImages[song.id]);
-      await _audioPlayer.setAudioSource(AudioSource.uri(Uri.parse(song.uri!)));
-      _audioPlayer.play();
-      _isPlaying = true;
-      notifyListeners();
+    try {
+      final mainIndex = _songs.indexWhere((s) => s.id == songId);
+      if (mainIndex != -1) {
+        final song = _songs[mainIndex];
+        _currentIndex = mainIndex;
+        await _dbHelper.insertOrUpdateSong(song,
+            imagePath: _songImages[song.id]);
+        await _audioPlayer
+            .setAudioSource(AudioSource.uri(Uri.parse(song.uri!)));
+        _audioPlayer.play();
+        _isPlaying = true;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error playing song: $e');
     }
   }
 
