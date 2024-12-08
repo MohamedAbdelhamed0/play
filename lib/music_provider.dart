@@ -46,6 +46,7 @@ class MusicProvider extends ChangeNotifier {
       await _requestPermissions();
       await _fetchSongs();
       await _loadSongImages();
+      await _loadSongColors(); // Load song colors from the database
 
       _audioPlayer.playerStateStream.listen((state) {
         _isPlaying = state.playing;
@@ -89,7 +90,8 @@ class MusicProvider extends ChangeNotifier {
 
   void setSearchQuery(String query) {
     _searchQuery = query.toLowerCase();
-    _updateFilteredSongs();
+    _updateFilteredSongs(); // Make sure this is called
+    notifyListeners(); // Add this to ensure UI updates
   }
 
   void _updateFilteredSongs() {
@@ -196,6 +198,16 @@ class MusicProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> _loadSongColors() async {
+    for (var song in _songs) {
+      final colorValue = await _dbHelper.getSongColor(song.id);
+      if (colorValue != null) {
+        _songColors[song.id] = Color(colorValue);
+      }
+    }
+    notifyListeners();
+  }
+
   Future<List<Map<String, dynamic>>> getPlaylists() async {
     return await _dbHelper.getPlaylists();
   }
@@ -221,7 +233,47 @@ class MusicProvider extends ChangeNotifier {
   }
 
   Future<List<SongModel>> getPlaylistSongs(int playlistId) async {
-    return await _dbHelper.getPlaylistSongs(playlistId);
+    final songIds = await _dbHelper.getPlaylistSongIds(playlistId);
+
+    // Use OnAudioQuery to fetch songs by IDs
+    final allSongs = await _audioQuery.querySongs(
+      sortType: SongSortType.TITLE,
+      orderType: OrderType.ASC_OR_SMALLER,
+      uriType: UriType.EXTERNAL,
+    );
+    final songs = allSongs.where((song) => songIds.contains(song.id)).toList();
+
+    return songs;
+  }
+
+  // Method to get all songs
+  Future<List<SongModel>> getAllSongs() async {
+    return await _audioQuery.querySongs(
+      sortType: SongSortType.TITLE,
+      orderType: OrderType.ASC_OR_SMALLER,
+      uriType: UriType.EXTERNAL,
+    );
+  }
+
+  // Method to edit playlist name
+  Future<void> editPlaylistName(int playlistId, String newName) async {
+    await _dbHelper.updatePlaylistName(playlistId, newName);
+    notifyListeners();
+  }
+
+  // Method to play a song by its ID
+  void playSongById(int songId) async {
+    // Find song in the main songs list
+    final index = _songs.indexWhere((song) => song.id == songId);
+    if (index != -1) {
+      _currentIndex = index;
+      final song = _songs[index];
+      await _dbHelper.insertOrUpdateSong(song, imagePath: _songImages[song.id]);
+      await _audioPlayer.setAudioSource(AudioSource.uri(Uri.parse(song.uri!)));
+      _audioPlayer.play();
+      _isPlaying = true;
+      notifyListeners();
+    }
   }
 
   Future<void> removeSongFromPlaylist(int playlistId, int songId) async {

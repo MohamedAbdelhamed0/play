@@ -49,7 +49,9 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
     return Consumer<MusicProvider>(
       builder: (context, provider, child) {
         final currentSong = provider.currentSong ?? widget.song;
-        final dominantColor = provider.getSongColor(currentSong.id);
+        final dominantColor =
+            provider.getSongColor(currentSong.id) ?? Colors.blue;
+
         return Scaffold(
           appBar: AppBar(
             backgroundColor: Colors.transparent,

@@ -197,15 +197,22 @@ class DatabaseHelper {
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
-  Future<List<SongModel>> getPlaylistSongs(int playlistId) async {
+  // Add this method to get song IDs from the playlist
+  Future<List<int>> getPlaylistSongIds(int playlistId) async {
     final db = await database;
-    final List<Map<String, dynamic>> maps = await db.rawQuery('''
-      SELECT s.* FROM songs s
-      INNER JOIN $playlistSongsTable ps ON s.id = ps.song_id
-      WHERE ps.playlist_id = ?
-    ''', [playlistId]);
+    final List<Map<String, dynamic>> result = await db.query(
+      playlistSongsTable,
+      columns: ['song_id'],
+      where: 'playlist_id = ?',
+      whereArgs: [playlistId],
+    );
 
-    return maps.map((map) => SongModel(map)).toList();
+    return result.map((row) => row['song_id'] as int).toList();
+  }
+
+  // Update the existing getPlaylistSongs method to return song IDs
+  Future<List<int>> getPlaylistSongs(int playlistId) async {
+    return await getPlaylistSongIds(playlistId);
   }
 
   Future<void> deletePlaylist(int playlistId) async {
@@ -234,5 +241,15 @@ class DatabaseHelper {
     } else {
       await addSongToPlaylist(LIKED_PLAYLIST_ID, songId);
     }
+  }
+
+  Future<void> updatePlaylistName(int playlistId, String newName) async {
+    final db = await database;
+    await db.update(
+      playlistTable,
+      {'name': newName},
+      where: 'id = ?',
+      whereArgs: [playlistId],
+    );
   }
 }

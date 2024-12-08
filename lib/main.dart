@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:play/AnimatedSearchRow.dart';
 import 'package:provider/provider.dart';
 
 import 'main_tabs_screen.dart';
@@ -51,39 +52,14 @@ class MusicPlayerHome extends StatelessWidget {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search songs...',
-                      hintStyle: TextStyle(color: Colors.blue.shade100),
-                      prefixIcon:
-                          Icon(Icons.search, color: Colors.blue.shade200),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25),
-                        borderSide: BorderSide(color: Colors.blue.shade200),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(25),
-                        borderSide: BorderSide(color: Colors.blue.shade200),
-                      ),
-                      filled: true,
-                      fillColor: Colors.white10,
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                    onChanged: provider.setSearchQuery,
-                  ),
-                ),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Row(
-                    children: [
-                      _buildFilterChip('All', 'all', provider),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('< 1 min', 'short', provider),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('> 1 min', 'long', provider),
-                    ],
+                  padding: EdgeInsets.only(left: 16, right: 16, top: 8),
+                  child: AnimatedSearchRow(
+                    onSearch: (query) {
+                      provider.setSearchQuery(query);
+                    },
+                    onFilterSelected: (filter) {
+                      provider.setFilter(filter);
+                    },
                   ),
                 ),
                 Expanded(
@@ -166,7 +142,8 @@ class MusicPlayerHome extends StatelessWidget {
                                     : null,
                               ),
                             ),
-                            onTap: () => provider.playSong(index),
+                            onTap: () => provider
+                                .playSongById(song.id), // Change this line
                           ),
                         ),
                       );

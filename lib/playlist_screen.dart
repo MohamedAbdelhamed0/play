@@ -4,21 +4,41 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'music_provider.dart';
 import 'music_player_page.dart';
 
-class PlaylistScreen extends StatelessWidget {
+class PlaylistScreen extends StatefulWidget {
   final int playlistId;
-  final String playlistName;
+  String playlistName; // Make playlistName mutable
 
-  const PlaylistScreen({
-    super.key,
+  PlaylistScreen({
+    Key? key,
     required this.playlistId,
     required this.playlistName,
-  });
+  }) : super(key: key);
 
+  @override
+  _PlaylistScreenState createState() => _PlaylistScreenState();
+}
+
+class _PlaylistScreenState extends State<PlaylistScreen> {
   @override
   Widget build(BuildContext context) {
     return Consumer<MusicProvider>(
       builder: (context, provider, child) {
         return Scaffold(
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            title: Text(widget.playlistName),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.edit),
+                onPressed: () => _editPlaylistName(context),
+              ),
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: () => _addSongsToPlaylist(context),
+              ),
+            ],
+          ),
           body: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -33,14 +53,9 @@ class PlaylistScreen extends StatelessWidget {
             child: SafeArea(
               child: Column(
                 children: [
-                  AppBar(
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    title: Text(playlistName),
-                  ),
                   Expanded(
                     child: FutureBuilder<List<SongModel>>(
-                      future: provider.getPlaylistSongs(playlistId),
+                      future: provider.getPlaylistSongs(widget.playlistId),
                       builder: (context, snapshot) {
                         if (!snapshot.hasData) {
                           return const Center(
@@ -61,11 +76,6 @@ class PlaylistScreen extends StatelessWidget {
                           itemCount: songs.length,
                           itemBuilder: (context, index) {
                             final song = songs[index];
-                            // Add null check for song.id
-                            if (song.id == null) {
-                              return const SizedBox(); // Skip invalid songs
-                            }
-
                             final isPlaying =
                                 provider.currentSong?.id == song.id;
 
@@ -91,16 +101,21 @@ class PlaylistScreen extends StatelessWidget {
                                       : Colors.transparent,
                                 ),
                                 child: ListTile(
-                                  onTap: () async {
-                                    final mainIndex = provider.songs
-                                        .indexWhere((s) => s.id == song.id);
-                                    if (mainIndex != -1) {
-                                      provider.playSong(mainIndex);
-                                    }
-                                  },
-                                  onLongPress: () {
-                                    _showRemoveDialog(context, provider, song);
-                                  },
+                                  title: Text(
+                                    song.title,
+                                    style: TextStyle(
+                                      color: isPlaying
+                                          ? Colors.blue.shade300
+                                          : Colors.white,
+                                      fontWeight:
+                                          isPlaying ? FontWeight.bold : null,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    song.artist ?? 'Unknown Artist',
+                                    style:
+                                        TextStyle(color: Colors.blue.shade100),
+                                  ),
                                   leading: Hero(
                                     tag: 'song-${song.id}',
                                     child: Container(
@@ -128,31 +143,30 @@ class PlaylistScreen extends StatelessWidget {
                                               )
                                             : null,
                                       ),
-                                      child:
-                                          provider.getSongImage(song.id) == null
-                                              ? Icon(
-                                                  Icons.music_note,
-                                                  color: isPlaying
-                                                      ? Colors.white
-                                                      : Colors.grey.shade400,
-                                                )
-                                              : null,
+                                      child: provider.getSongImage(song.id) ==
+                                              null
+                                          ? Icon(
+                                              isPlaying
+                                                  ? Icons.music_note
+                                                  : Icons.music_note_outlined,
+                                              color: isPlaying
+                                                  ? Colors.white
+                                                  : Colors.grey.shade400,
+                                            )
+                                          : null,
                                     ),
                                   ),
-                                  title: Text(
-                                    song.title,
-                                    style: TextStyle(
-                                      color: isPlaying
-                                          ? Colors.blue.shade300
-                                          : Colors.white,
-                                      fontWeight:
-                                          isPlaying ? FontWeight.bold : null,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    song.artist ?? 'Unknown Artist',
-                                    style:
-                                        TextStyle(color: Colors.blue.shade200),
+                                  onTap: () {
+                                    provider.playSongById(song.id);
+                                  },
+                                  trailing: IconButton(
+                                    icon: const Icon(Icons.delete),
+                                    onPressed: () async {
+                                      await provider.removeSongFromPlaylist(
+                                          widget.playlistId, song.id);
+                                      setState(() {}); // Refresh the playlist
+                                    },
+                                    color: Colors.red,
                                   ),
                                 ),
                               ),
@@ -168,6 +182,101 @@ class PlaylistScreen extends StatelessWidget {
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  // Method to edit playlist name
+  void _editPlaylistName(BuildContext context) {
+    final TextEditingController controller =
+        TextEditingController(text: widget.playlistName);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Edit Playlist Name'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: 'Enter new playlist name',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final newName = controller.text.trim();
+                if (newName.isNotEmpty) {
+                  await Provider.of<MusicProvider>(context, listen: false)
+                      .editPlaylistName(widget.playlistId, newName);
+                  setState(() {
+                    widget.playlistName = newName;
+                  });
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Method to add songs to the playlist
+  void _addSongsToPlaylist(BuildContext context) async {
+    final provider = Provider.of<MusicProvider>(context, listen: false);
+    final allSongs = await provider.getAllSongs();
+    final playlistSongs = await provider.getPlaylistSongs(widget.playlistId);
+    final songIdsInPlaylist = playlistSongs.map((s) => s.id).toSet();
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Add Songs'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 400,
+            child: ListView.builder(
+              itemCount: allSongs.length,
+              itemBuilder: (context, index) {
+                final song = allSongs[index];
+                final isInPlaylist = songIdsInPlaylist.contains(song.id);
+
+                return CheckboxListTile(
+                  title: Text(song.title),
+                  subtitle: Text(song.artist ?? 'Unknown Artist'),
+                  value: isInPlaylist,
+                  onChanged: (value) async {
+                    if (value == true) {
+                      await provider.addSongToPlaylist(widget.playlistId, song);
+                      songIdsInPlaylist.add(song.id);
+                    } else {
+                      await provider.removeSongFromPlaylist(
+                          widget.playlistId, song.id);
+                      songIdsInPlaylist.remove(song.id);
+                    }
+                    setState(() {});
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() {}); // Refresh the playlist
+              },
+              child: const Text('Done'),
+            ),
+          ],
         );
       },
     );
@@ -219,7 +328,7 @@ class PlaylistScreen extends StatelessWidget {
           ),
           TextButton(
             onPressed: () {
-              provider.removeSongFromPlaylist(playlistId, song.id);
+              provider.removeSongFromPlaylist(widget.playlistId, song.id);
               Navigator.pop(context);
             },
             child: const Text('Remove'),
