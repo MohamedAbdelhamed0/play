@@ -1,8 +1,12 @@
-import 'package:flutter/material.dart';
-import 'package:on_audio_query/on_audio_query.dart';
-import 'package:just_audio/just_audio.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
+import 'dart:async';
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:on_audio_query/on_audio_query.dart';
+import 'package:permission_handler/permission_handler.dart';
+
 import 'database_helper.dart';
 
 class MusicProvider extends ChangeNotifier {
@@ -23,6 +27,15 @@ class MusicProvider extends ChangeNotifier {
   final Map<int, Color> _songColors = {};
   final Map<int, bool> _likedSongs = {};
 
+  static const int _samplesCount = 32; // Power of 2 works better
+  final List<double> _audioLevels = List.filled(32, 0.0);
+  Timer? _visualizerTimer;
+
+  // Add these properties
+  StreamSubscription<double>? _volumeSubscription;
+  StreamSubscription<PlaybackEvent>? _playbackEventSubscription;
+  double _currentVolume = 0.0;
+
   List<SongModel> get songs => _songs;
   bool get isPlaying => _isPlaying;
   List<SongModel> get filteredSongs => _filteredSongs;
@@ -36,6 +49,8 @@ class MusicProvider extends ChangeNotifier {
 
   Stream<Duration> get positionStream => _audioPlayer.positionStream;
   Stream<Duration?> get durationStream => _audioPlayer.durationStream;
+
+  List<double> get audioLevels => _audioLevels;
 
   MusicProvider() {
     _init();
@@ -76,9 +91,30 @@ class MusicProvider extends ChangeNotifier {
         }
       });
 
+      // Add this stream listener for volume metrics
+      _audioPlayer.volumeStream.listen((volume) {
+        _updateAudioLevelsWithVolume(volume);
+      });
+
       // Initialize with no song selected
       _currentIndex = -1;
       _isPlaying = false;
+
+      // Set up volume monitoring
+      _volumeSubscription = _audioPlayer.volumeStream.listen((volume) {
+        debugPrint('Volume changed: $volume');
+        _currentVolume = volume;
+        _updateAudioLevels();
+      });
+
+      // Monitor playback events
+      _playbackEventSubscription =
+          _audioPlayer.playbackEventStream.listen((event) {
+        debugPrint('Playback event: ${event.processingState}');
+        if (event.processingState == ProcessingState.ready) {
+          _startVisualizerTimer();
+        }
+      });
     } catch (e) {
       debugPrint('Error initializing music provider: $e');
     }
@@ -139,9 +175,10 @@ class MusicProvider extends ChangeNotifier {
     _currentIndex = index;
     final song = _songs[index];
     await _dbHelper.insertOrUpdateSong(song, imagePath: _songImages[song.id]);
-    _audioPlayer.setAudioSource(AudioSource.uri(Uri.parse(song.uri!)));
+    await _audioPlayer.setAudioSource(AudioSource.uri(Uri.parse(song.uri!)));
     _audioPlayer.play();
     _isPlaying = true;
+    _startVisualizerTimer(); // Add this line
     notifyListeners();
   }
 
@@ -149,6 +186,7 @@ class MusicProvider extends ChangeNotifier {
     if (_currentIndex != -1) {
       _audioPlayer.play();
       _isPlaying = true;
+      _startVisualizerTimer(); // Add this line
       notifyListeners();
     }
   }
@@ -156,6 +194,7 @@ class MusicProvider extends ChangeNotifier {
   void pause() {
     _audioPlayer.pause();
     _isPlaying = false;
+    _visualizerTimer?.cancel(); // Add this line
     notifyListeners();
   }
 
@@ -335,8 +374,77 @@ class MusicProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void _updateAudioLevelsWithVolume(double volume) {
+    // Shift all values to the left
+    for (int i = 0; i < _samplesCount - 1; i++) {
+      _audioLevels[i] = _audioLevels[i + 1];
+    }
+
+    // Add new value with some randomization for better visual effect
+    _audioLevels[_samplesCount - 1] = (volume *
+            (0.5 + 0.5 * DateTime.now().millisecondsSinceEpoch % 100 / 100))
+        .clamp(0.0, 1.0);
+
+    notifyListeners();
+  }
+
+  void _updateAudioLevels() {
+    if (!_isPlaying) {
+      for (int i = 0; i < _samplesCount; i++) {
+        _audioLevels[i] = 0.0;
+      }
+      notifyListeners();
+      return;
+    }
+
+    // Shift existing values
+    for (int i = 0; i < _samplesCount - 1; i++) {
+      _audioLevels[i] = _audioLevels[i + 1];
+    }
+
+    // Generate more varied levels
+    double newLevel = 0.0;
+
+    // Base amplitude from current volume
+    newLevel = _currentVolume * 0.5;
+
+    // Add rhythmic variation
+    final time = DateTime.now().millisecondsSinceEpoch / 200;
+    newLevel += 0.3 * sin(time) * Random().nextDouble();
+
+    // Add secondary wave for more complexity
+    newLevel += 0.2 * sin(time * 1.5) * Random().nextDouble();
+
+    // Occasional beats
+    if (Random().nextDouble() > 0.85) {
+      newLevel += Random().nextDouble() * 0.5;
+    }
+
+    // Ensure we have good range of values
+    newLevel = newLevel.clamp(0.1, 1.0);
+
+    _audioLevels[_samplesCount - 1] = newLevel;
+    notifyListeners();
+  }
+
+  void _startVisualizerTimer() {
+    debugPrint('Starting visualizer timer');
+    _visualizerTimer?.cancel();
+    _visualizerTimer =
+        Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (_isPlaying) {
+        _updateAudioLevels();
+      } else {
+        debugPrint('Playback paused - visualizer timer still running');
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _visualizerTimer?.cancel(); // Add this line
+    _volumeSubscription?.cancel();
+    _playbackEventSubscription?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }

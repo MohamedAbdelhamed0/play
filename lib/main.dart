@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:play/AnimatedSearchRow.dart';
 import 'package:provider/provider.dart';
 
+import 'animated_counters.dart';
 import 'main_tabs_screen.dart';
 import 'music_player_page.dart';
 import 'music_provider.dart';
@@ -93,6 +94,8 @@ class MusicPlayerHome extends StatelessWidget {
                           child: ListTile(
                             title: Text(
                               song.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 color: isPlaying
                                     ? Colors.blue.shade300
@@ -144,6 +147,33 @@ class MusicPlayerHome extends StatelessWidget {
                             ),
                             onTap: () => provider
                                 .playSongById(song.id), // Change this line
+
+                            trailing: isPlaying
+                                ? SizedBox(
+                                    width: 24, // Reduced width
+                                    height: 24, // Reduced height
+                                    child: AnimatedCounters(
+                                      width: 2,
+                                      height: 16,
+                                      color1: provider
+                                          .getSongColor(song.id)
+                                          .withOpacity(0.8),
+                                      color2: provider
+                                          .getSongColor(song.id)
+                                          .withOpacity(0.6),
+                                      color3: provider
+                                          .getSongColor(song.id)
+                                          .withOpacity(0.4),
+                                    ),
+                                  )
+                                : IconButton(
+                                    icon: Icon(
+                                      Icons.play_arrow,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                    onPressed: () =>
+                                        provider.playSongById(song.id),
+                                  ),
                           ),
                         ),
                       );
@@ -152,6 +182,15 @@ class MusicPlayerHome extends StatelessWidget {
                 ),
                 if (provider.currentSong != null)
                   _buildPlayerControls(context, provider),
+                // if (provider.isPlaying)
+                //   Consumer<MusicProvider>(
+                //     builder: (context, musicProvider, child) {
+                //       return AudioVisualizer(
+                //         audioLevels: musicProvider.audioLevels,
+                //         visualizerHeight: 50, // or any height you want
+                //       );
+                //     },
+                //   )
               ],
             ),
           ),
